@@ -1,13 +1,13 @@
 // Import Firebase services
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- Firebase Configuration ---
 // IMPORTANT: Replace this with YOUR Firebase project's configuration!
 // You obtained this from the Firebase Console in Step 1.
 const firebaseConfig = {
-    apiKey: "AIzaSyAnd2fGeYFVy3-BfgHUVft_eVAPLCOdtJM",
+   apiKey: "AIzaSyAnd2fGeYFVy3-BfgHUVft_eVAPLCOdtJM",
   authDomain: "iti-mock-test-app.firebaseapp.com",
   projectId: "iti-mock-test-app",
   storageBucket: "iti-mock-test-app.firebasestorage.app",
@@ -21,19 +21,24 @@ let app;
 let db;
 let auth;
 let currentUserId = null; // Stores the authenticated user's ID
+let currentUserEmail = null; // Stores the authenticated user's email
+let isTeacherAuthorized = false; // Flag to check if the current user is an authorized teacher
+let authorizedTeacherUids = []; // Array to store UIDs of authorized teachers
 
 // --- Common DOM Elements ---
-const messageBox = document.getElementById('messageBox'); // Used in teacher.html
+const messageBox = document.getElementById('messageBox'); // Used in teacher.html for question messages
 const userIdDisplay = document.getElementById('userIdDisplay'); // Used in teacher.html
+const userEmailDisplay = document.getElementById('userEmailDisplay'); // Used in teacher.html
+const authStatus = document.getElementById('authStatus'); // Used in teacher.html
 
 /**
  * Displays a message to the user in the message box.
  * @param {string} message - The message to display.
  * @param {boolean} isSuccess - True if it's a success message, false for an error.
- * @param {HTMLElement} targetMessageBox - The message box element to use (e.g., messageBox or configMessageBox).
+ * @param {HTMLElement} targetMessageBox - The message box element to use (e.g., messageBox or authMessageBox).
  */
-function showMessage(message, isSuccess, targetMessageBox = messageBox) {
-    if (!targetMessageBox) return; // Guard against null messageBox on student page
+function showMessage(message, isSuccess, targetMessageBox) {
+    if (!targetMessageBox) return; // Guard against null messageBox on student page or if not provided
 
     targetMessageBox.textContent = message;
     targetMessageBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
@@ -84,7 +89,6 @@ function showCustomConfirm(message) {
  */
 async function initializeFirebaseAndAuth() {
     try {
-        // Initialize Firebase app
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
@@ -92,14 +96,12 @@ async function initializeFirebaseAndAuth() {
         // Listen for authentication state changes
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // User is signed in.
                 currentUserId = user.uid;
-                if (userIdDisplay) { // Check if userIdDisplay exists (only on teacher page)
-                    userIdDisplay.textContent = currentUserId;
-                }
-                console.log("User signed in with UID:", currentUserId);
+                currentUserEmail = user.email; // Get email if available
 
-                // Determine which page we are on and call the appropriate setup function
+                // Fetch authorized teacher UIDs
+                await fetchAuthorizedTeachers();
+
                 if (window.location.pathname.includes('teacher.html')) {
                     setupTeacherPage();
                 } else if (window.location.pathname.includes('student.html')) {
@@ -108,24 +110,36 @@ async function initializeFirebaseAndAuth() {
 
             } else {
                 // User is signed out.
-                console.log("No user signed in. Attempting anonymous sign-in.");
-                // Attempt to sign in anonymously if no user is signed in
+                console.log("No user signed in.");
+                currentUserId = null;
+                currentUserEmail = null;
+                isTeacherAuthorized = false; // Reset authorization status
+
+                // If on teacher page, ensure login form is shown
+                if (window.location.pathname.includes('teacher.html')) {
+                    if (authSection) authSection.classList.remove('hidden');
+                    if (teacherContent) teacherContent.classList.add('hidden');
+                    if (userEmailDisplay) userEmailDisplay.textContent = 'N/A';
+                    if (userIdDisplay) userIdDisplay.textContent = 'N/A';
+                    if (authStatus) authStatus.textContent = '';
+                }
+
+                // Attempt to sign in anonymously for student page or initial teacher page load
+                // This is needed for Firestore read permissions for public data
                 try {
-                    // Use __initial_auth_token if available, otherwise sign in anonymously
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         await signInWithCustomToken(auth, __initial_auth_token);
                         console.log("Signed in with custom token.");
                     } else {
                         await signInAnonymously(auth);
-                        console.log("Signed in anonymously.");
+                        console.log("Signed in anonymously for public data access.");
                     }
                 } catch (error) {
                     console.error("Error during anonymous sign-in:", error);
-                    if (userIdDisplay) {
-                        showMessage("Failed to sign in. Please check console for details.", false, userIdDisplay);
-                        userIdDisplay.textContent = "Error";
+                    if (window.location.pathname.includes('teacher.html')) {
+                        showMessage("Failed to sign in. Please check console for details.", false, authMessageBox);
                     } else {
-                        console.error("Failed to sign in. Cannot display message on this page.");
+                        showMessage("Failed to initialize. Please refresh.", false, document.getElementById('configMessageBox'));
                     }
                 }
             }
@@ -133,37 +147,224 @@ async function initializeFirebaseAndAuth() {
 
     } catch (error) {
         console.error("Error initializing Firebase:", error);
-        showMessage("Failed to initialize app. Check console for details.", false);
+        showMessage("Failed to initialize app. Check console for details.", false, document.getElementById('authMessageBox') || document.getElementById('configMessageBox'));
+    }
+}
+
+/**
+ * Fetches the list of authorized teacher UIDs from Firestore.
+ */
+async function fetchAuthorizedTeachers() {
+    if (!db) return;
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const configDocRef = doc(db, `artifacts/${appId}/public/data/config`, 'authorizedTeachers');
+
+    try {
+        const docSnap = await getDoc(configDocRef);
+        if (docSnap.exists()) {
+            authorizedTeacherUids = docSnap.data().uids || [];
+        } else {
+            authorizedTeacherUids = [];
+            console.log("No authorized teachers config found. First signup will become authorized.");
+        }
+        // Check if current user is authorized
+        if (currentUserId && authorizedTeacherUids.includes(currentUserId)) {
+            isTeacherAuthorized = true;
+        } else {
+            isTeacherAuthorized = false;
+        }
+    } catch (error) {
+        console.error("Error fetching authorized teachers:", error);
+        authorizedTeacherUids = []; // Assume no authorized teachers on error
+        isTeacherAuthorized = false;
+    }
+}
+
+/**
+ * Adds a user's UID to the list of authorized teachers in Firestore.
+ * This should only be called for the first teacher signup or by an admin.
+ * @param {string} uid - The UID of the user to authorize.
+ */
+async function authorizeTeacher(uid) {
+    if (!db) return;
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const configDocRef = doc(db, `artifacts/${appId}/public/data/config`, 'authorizedTeachers');
+
+    try {
+        // Fetch current list, add new UID if not present, and save
+        await fetchAuthorizedTeachers(); // Ensure authorizedTeacherUids is up-to-date
+        if (!authorizedTeacherUids.includes(uid)) {
+            authorizedTeacherUids.push(uid);
+            await setDoc(configDocRef, { uids: authorizedTeacherUids }, { merge: true });
+            console.log(`User ${uid} authorized as teacher.`);
+            isTeacherAuthorized = true; // Update status immediately
+        }
+    } catch (error) {
+        console.error("Error authorizing teacher:", error);
     }
 }
 
 
 // --- Teacher Page Specific Logic ---
+let authSection;
+let teacherContent;
+let authForm;
+let emailInput;
+let passwordInput;
+let loginBtn;
+let signupBtn;
+let logoutBtn;
+let authMessageBox;
+
 let addQuestionForm;
 let questionsList;
 let loadingMessage;
 
+
 function setupTeacherPage() {
+    // Get teacher page specific DOM elements
+    authSection = document.getElementById('authSection');
+    teacherContent = document.getElementById('teacherContent');
+    authForm = document.getElementById('authForm');
+    emailInput = document.getElementById('email');
+    passwordInput = document.getElementById('password');
+    loginBtn = document.getElementById('loginBtn');
+    signupBtn = document.getElementById('signupBtn');
+    logoutBtn = document.getElementById('logoutBtn');
+    authMessageBox = document.getElementById('authMessageBox');
+
     addQuestionForm = document.getElementById('addQuestionForm');
     questionsList = document.getElementById('questionsList');
     loadingMessage = document.getElementById('loadingMessage');
 
-    // Add event listener for form submission
+    // Display user info if logged in
+    if (currentUserId) {
+        if (userEmailDisplay) userEmailDisplay.textContent = currentUserEmail || 'Anonymous';
+        if (userIdDisplay) userIdDisplay.textContent = currentUserId;
+        if (authStatus) authStatus.textContent = isTeacherAuthorized ? ' (Authorized Teacher)' : ' (Unauthorized)';
+
+        // Show/hide sections based on authorization
+        if (isTeacherAuthorized) {
+            if (authSection) authSection.classList.add('hidden');
+            if (teacherContent) teacherContent.classList.remove('hidden');
+            setupQuestionsListener(); // Only listen for questions if authorized
+        } else {
+            if (authSection) authSection.classList.remove('hidden');
+            if (teacherContent) teacherContent.classList.add('hidden');
+            showMessage("You are logged in but not authorized to manage questions. Please contact administrator.", false, authMessageBox);
+        }
+    } else {
+        // Not logged in, show auth section
+        if (authSection) authSection.classList.remove('hidden');
+        if (teacherContent) teacherContent.classList.add('hidden');
+    }
+
+    // Add event listeners for teacher page authentication
+    if (loginBtn) {
+        loginBtn.addEventListener('click', handleLogin);
+    }
+    if (signupBtn) {
+        signupBtn.addEventListener('click', handleSignUp);
+    }
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
     if (addQuestionForm) {
         addQuestionForm.addEventListener('submit', addQuestion);
     }
-    setupQuestionsListener(); // Start listening for questions for the teacher page
 }
 
 /**
- * Adds a new question to Firestore.
+ * Handles teacher login.
+ * @param {Event} event - The click event.
+ */
+async function handleLogin(event) {
+    event.preventDefault(); // Prevent form submission if loginBtn is type="submit"
+    const email = emailInput.value;
+    const password = passwordInput.value;
+
+    if (!email || !password) {
+        showMessage("Please enter email and password.", false, authMessageBox);
+        return;
+    }
+
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+        showMessage("Logged in successfully!", true, authMessageBox);
+        // onAuthStateChanged listener will handle UI update
+    } catch (error) {
+        console.error("Login error:", error);
+        let errorMessage = "Login failed. Please check your credentials.";
+        if (error.code === 'auth/user-not-found') {
+            errorMessage = "No account found with this email. Please sign up.";
+        } else if (error.code === 'auth/wrong-password') {
+            errorMessage = "Incorrect password.";
+        }
+        showMessage(errorMessage, false, authMessageBox);
+    }
+}
+
+/**
+ * Handles teacher signup.
+ * @param {Event} event - The click event.
+ */
+async function handleSignUp(event) {
+    event.preventDefault(); // Prevent form submission if signupBtn is type="submit"
+    const email = emailInput.value;
+    const password = passwordInput.value;
+
+    if (!email || !password) {
+        showMessage("Please enter email and password.", false, authMessageBox);
+        return;
+    }
+    if (password.length < 6) {
+        showMessage("Password must be at least 6 characters long.", false, authMessageBox);
+        return;
+    }
+
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // Automatically authorize the first user who signs up
+        await authorizeTeacher(userCredential.user.uid);
+        showMessage("Account created and authorized successfully! You can now log in.", true, authMessageBox);
+        authForm.reset(); // Clear form after signup
+    } catch (error) {
+        console.error("Signup error:", error);
+        let errorMessage = "Signup failed.";
+        if (error.code === 'auth/email-already-in-use') {
+            errorMessage = "This email is already registered. Please login instead.";
+        } else if (error.code === 'auth/weak-password') {
+            errorMessage = "Password is too weak. Please use a stronger password.";
+        }
+        showMessage(errorMessage, false, authMessageBox);
+    }
+}
+
+/**
+ * Handles teacher logout.
+ */
+async function handleLogout() {
+    try {
+        await signOut(auth);
+        showMessage("Logged out successfully!", true, authMessageBox);
+        // onAuthStateChanged listener will handle UI update
+    } catch (error) {
+        console.error("Logout error:", error);
+        showMessage("Failed to log out. Please try again.", false, authMessageBox);
+    }
+}
+
+/**
+ * Adds a new question to Firestore, only if the user is an authorized teacher.
  * @param {Event} event - The form submission event.
  */
 async function addQuestion(event) {
     event.preventDefault(); // Prevent default form submission
 
-    if (!currentUserId) {
-        showMessage("Authentication not ready. Please wait.", false);
+    if (!isTeacherAuthorized) {
+        showMessage("You are not authorized to add questions.", false, messageBox);
         return;
     }
 
@@ -177,21 +378,18 @@ async function addQuestion(event) {
 
     // Basic validation
     if (!questionText || !optionA || !optionB || !optionC || !optionD || !correctOption) {
-        showMessage("Please fill in all fields.", false);
+        showMessage("Please fill in all fields.", false, messageBox);
         return;
     }
     if (!['A', 'B', 'C', 'D'].includes(correctOption)) {
-        showMessage("Correct option must be A, B, C, or D.", false);
+        showMessage("Correct option must be A, B, C, or D.", false, messageBox);
         return;
     }
 
     try {
-        // Define the collection path for public data
-        // Using __app_id for unique application identification
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const questionsCollectionRef = collection(db, `artifacts/${appId}/public/data/questions`);
 
-        // Add the question document to the 'questions' collection
         await addDoc(questionsCollectionRef, {
             question: questionText,
             options: {
@@ -201,47 +399,48 @@ async function addQuestion(event) {
                 D: optionD
             },
             correctAnswer: correctOption,
-            createdAt: new Date(), // Timestamp for when the question was added
-            addedBy: currentUserId // Store the ID of the user who added the question
+            createdAt: new Date(),
+            addedBy: currentUserId,
+            addedByEmail: currentUserEmail || 'N/A' // Store email for easier identification
         });
 
-        showMessage("Question added successfully!", true);
+        showMessage("Question added successfully!", true, messageBox);
         addQuestionForm.reset(); // Clear the form
     } catch (error) {
         console.error("Error adding question:", error);
-        showMessage("Error adding question. Please try again.", false);
+        showMessage("Error adding question. Please try again.", false, messageBox);
     }
 }
 
 /**
  * Sets up a real-time listener for questions in Firestore.
  * This will update the UI whenever questions are added, modified, or deleted.
+ * Only runs if the user is an authorized teacher.
  */
 function setupQuestionsListener() {
-    if (!db) {
-        console.error("Firestore not initialized.");
+    if (!db || !isTeacherAuthorized) {
+        console.error("Firestore not initialized or user not authorized to listen to questions.");
+        if (questionsList) questionsList.innerHTML = '<p class="text-red-500 text-center">Not authorized to view questions.</p>';
         return;
     }
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const questionsCollectionRef = collection(db, `artifacts/${appId}/public/data/questions`);
 
-    // Create a query to listen to all questions in the public collection
     const q = query(questionsCollectionRef);
 
-    // Set up the real-time listener
     onSnapshot(q, (snapshot) => {
-        questionsList.innerHTML = ''; // Clear existing questions
-        loadingMessage.classList.add('hidden'); // Hide loading message
+        if (questionsList) questionsList.innerHTML = '';
+        if (loadingMessage) loadingMessage.classList.add('hidden');
 
         if (snapshot.empty) {
-            questionsList.innerHTML = '<p class="text-gray-500 text-center">No questions added yet.</p>';
+            if (questionsList) questionsList.innerHTML = '<p class="text-gray-500 text-center">No questions added yet.</p>';
             return;
         }
 
         snapshot.forEach((doc) => {
             const questionData = doc.data();
-            const questionId = doc.id; // Get the document ID for deletion
+            const questionId = doc.id;
 
             const questionCard = document.createElement('div');
             questionCard.className = 'bg-white p-4 rounded-lg shadow border border-gray-100';
@@ -254,59 +453,63 @@ function setupQuestionsListener() {
                     <li>D: ${questionData.options.D}</li>
                 </ul>
                 <p class="text-green-600 font-medium mb-2">Correct Answer: ${questionData.correctAnswer}</p>
-                <p class="text-gray-500 text-xs">Added by: ${questionData.addedBy || 'Unknown'} on ${questionData.createdAt ? new Date(questionData.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
+                <p class="text-gray-500 text-xs">Added by: ${questionData.addedByEmail || questionData.addedBy || 'Unknown'} on ${questionData.createdAt ? new Date(questionData.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
                 <button data-id="${questionId}" class="delete-btn mt-3 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-1 px-3 rounded-md transition duration-300 ease-in-out">
                     Delete
                 </button>
             `;
-            questionsList.appendChild(questionCard);
+            if (questionsList) questionsList.appendChild(questionCard);
         });
 
-        // Add event listeners to newly created delete buttons
         document.querySelectorAll('.delete-btn').forEach(button => {
             button.addEventListener('click', handleDeleteQuestion);
         });
     }, (error) => {
         console.error("Error listening to questions:", error);
-        questionsList.innerHTML = '<p class="text-red-500 text-center">Error loading questions. Please try again.</p>';
+        if (questionsList) questionsList.innerHTML = '<p class="text-red-500 text-center">Error loading questions. Please try again.</p>';
     });
 }
 
 /**
- * Handles the deletion of a question from Firestore.
+ * Handles the deletion of a question from Firestore, only if the user is an authorized teacher.
  * @param {Event} event - The click event from the delete button.
  */
 async function handleDeleteQuestion(event) {
+    if (!isTeacherAuthorized) {
+        showMessage("You are not authorized to delete questions.", false, messageBox);
+        return;
+    }
+
     const questionId = event.target.dataset.id;
     if (!questionId) {
-        showMessage("Could not find question ID to delete.", false);
+        showMessage("Could not find question ID to delete.", false, messageBox);
         return;
     }
 
     const confirmDelete = await showCustomConfirm("Are you sure you want to delete this question?");
     if (!confirmDelete) {
-        return; // User cancelled
+        return;
     }
 
     try {
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const questionDocRef = doc(db, `artifacts/${appId}/public/data/questions`, questionId);
         await deleteDoc(questionDocRef);
-        showMessage("Question deleted successfully!", true);
+        showMessage("Question deleted successfully!", true, messageBox);
     } catch (error) {
         console.error("Error deleting question:", error);
-        showMessage("Error deleting question. Please try again.", false);
+        showMessage("Error deleting question. Please try again.", false, messageBox);
     }
 }
 
 
 // --- Student Page Specific Logic ---
-let allQuestions = []; // Stores all questions fetched from Firestore
-let quizQuestions = []; // Stores questions selected for the current quiz
+let allQuestions = [];
+let quizQuestions = [];
 let currentQuestionIndex = 0;
-let studentAnswers = []; // Stores student's selected answers
+let studentAnswers = [];
 let timerInterval;
-let timeLeft; // in seconds
+let timeLeft;
 
 // DOM elements for student page
 const configSection = document.getElementById('configSection');
@@ -316,6 +519,9 @@ const startTestBtn = document.getElementById('startTestBtn');
 const numQuestionsInput = document.getElementById('numQuestions');
 const timeLimitInput = document.getElementById('timeLimit');
 const configMessageBox = document.getElementById('configMessageBox');
+const studentIdInput = document.getElementById('studentId'); // New: Student ID input
+const previousResultsSection = document.getElementById('previousResultsSection'); // New: Previous results section
+const previousResultsList = document.getElementById('previousResultsList'); // New: List for previous results
 
 const currentQuestionNumSpan = document.getElementById('currentQuestionNum');
 const totalQuestionsNumSpan = document.getElementById('totalQuestionsNum');
@@ -355,6 +561,15 @@ function setupStudentPage() {
     if (retakeTestBtn) {
         retakeTestBtn.addEventListener('click', resetTest);
     }
+    if (studentIdInput) {
+        // Fetch previous results whenever student ID changes
+        studentIdInput.addEventListener('input', fetchAndDisplayPreviousResults);
+        // Also fetch on initial load if an ID is pre-filled (e.g., from browser history)
+        if (studentIdInput.value) {
+            fetchAndDisplayPreviousResults();
+        }
+    }
+
 
     // Fetch all questions when the student page loads
     fetchAllQuestions();
@@ -380,14 +595,14 @@ async function fetchAllQuestions() {
         console.log(`Fetched ${allQuestions.length} questions.`);
         if (allQuestions.length === 0) {
             showMessage("No questions available in the pool. Please ask a teacher to add some.", false, configMessageBox);
-            startTestBtn.disabled = true; // Disable start button if no questions
+            if (startTestBtn) startTestBtn.disabled = true; // Disable start button if no questions
         } else {
-            startTestBtn.disabled = false;
+            if (startTestBtn) startTestBtn.disabled = false;
         }
     } catch (error) {
         console.error("Error fetching all questions:", error);
         showMessage("Error loading questions. Please try again.", false, configMessageBox);
-        startTestBtn.disabled = true;
+        if (startTestBtn) startTestBtn.disabled = true;
     }
 }
 
@@ -396,6 +611,12 @@ async function fetchAllQuestions() {
  * Validates inputs, selects random questions, and displays the first question.
  */
 async function startTest() {
+    const studentId = studentIdInput ? studentIdInput.value.trim() : '';
+    if (!studentId) {
+        showMessage("Please enter your Student ID to start the test.", false, configMessageBox);
+        return;
+    }
+
     const numQuestions = parseInt(numQuestionsInput.value);
     const timeLimitMinutes = parseInt(timeLimitInput.value);
 
@@ -430,11 +651,11 @@ async function startTest() {
     }
 
     // Hide config, show quiz
-    configSection.classList.add('hidden');
-    quizSection.classList.remove('hidden');
-    resultsSection.classList.add('hidden'); // Ensure results are hidden
+    if (configSection) configSection.classList.add('hidden');
+    if (quizSection) quizSection.classList.remove('hidden');
+    if (resultsSection) resultsSection.classList.add('hidden'); // Ensure results are hidden
 
-    totalQuestionsNumSpan.textContent = quizQuestions.length;
+    if (totalQuestionsNumSpan) totalQuestionsNumSpan.textContent = quizQuestions.length;
     displayQuestion();
     startTimer();
 }
@@ -449,7 +670,7 @@ function displayQuestion() {
     }
 
     const question = quizQuestions[currentQuestionIndex];
-    currentQuestionNumSpan.textContent = currentQuestionIndex + 1;
+    if (currentQuestionNumSpan) currentQuestionNumSpan.textContent = currentQuestionIndex + 1;
 
     let optionsHtml = '';
     const optionKeys = ['A', 'B', 'C', 'D'];
@@ -464,28 +685,31 @@ function displayQuestion() {
         `;
     });
 
-    questionContainer.innerHTML = `
-        <p class="text-xl font-bold text-gray-800 mb-4">${currentQuestionIndex + 1}. ${question.question}</p>
-        <div class="options-group">
-            ${optionsHtml}
-        </div>
-    `;
+    if (questionContainer) {
+        questionContainer.innerHTML = `
+            <p class="text-xl font-bold text-gray-800 mb-4">${currentQuestionIndex + 1}. ${question.question}</p>
+            <div class="options-group">
+                ${optionsHtml}
+            </div>
+        `;
 
-    // Add event listeners for radio buttons to save answers
-    document.querySelectorAll(`input[name="question${currentQuestionIndex}"]`).forEach(radio => {
-        radio.addEventListener('change', (event) => {
-            studentAnswers[currentQuestionIndex] = event.target.value;
+        // Add event listeners for radio buttons to save answers
+        document.querySelectorAll(`input[name="question${currentQuestionIndex}"]`).forEach(radio => {
+            radio.addEventListener('change', (event) => {
+                studentAnswers[currentQuestionIndex] = event.target.value;
+            });
         });
-    });
+    }
+
 
     // Update navigation button states
-    prevQuestionBtn.disabled = currentQuestionIndex === 0;
+    if (prevQuestionBtn) prevQuestionBtn.disabled = currentQuestionIndex === 0;
     if (currentQuestionIndex === quizQuestions.length - 1) {
-        nextQuestionBtn.classList.add('hidden');
-        submitTestBtn.classList.remove('hidden');
+        if (nextQuestionBtn) nextQuestionBtn.classList.add('hidden');
+        if (submitTestBtn) submitTestBtn.classList.remove('hidden');
     } else {
-        nextQuestionBtn.classList.remove('hidden');
-        submitTestBtn.classList.add('hidden');
+        if (nextQuestionBtn) nextQuestionBtn.classList.remove('hidden');
+        if (submitTestBtn) submitTestBtn.classList.add('hidden');
     }
 }
 
@@ -518,20 +742,21 @@ function startTimer() {
         timeLeft--;
         const minutes = Math.floor(timeLeft / 60);
         const seconds = timeLeft % 60;
-        timerSpan.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        if (timerSpan) timerSpan.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
         if (timeLeft <= 0) {
             clearInterval(timerInterval);
             submitTest();
-            showMessage("Time's up! Your test has been submitted.", false, configMessageBox); // Use configMessageBox as it's visible after test
+            showMessage("Time's up! Your test has been submitted.", false, configMessageBox);
         }
     }, 1000);
 }
 
 /**
  * Submits the test, calculates results, and displays them.
+ * Also saves the results to Firestore.
  */
-function submitTest() {
+async function submitTest() {
     clearInterval(timerInterval); // Stop the timer
 
     let correctCount = 0;
@@ -587,15 +812,47 @@ function submitTest() {
     const score = totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toFixed(2) : 0;
 
     // Update results section
-    resultsTotalQuestionsSpan.textContent = totalQuestions;
-    resultsCorrectSpan.textContent = correctCount;
-    resultsIncorrectSpan.textContent = incorrectCount;
-    resultsScoreSpan.textContent = score;
-    answerReviewDiv.innerHTML = reviewHtml.join('');
+    if (resultsTotalQuestionsSpan) resultsTotalQuestionsSpan.textContent = totalQuestions;
+    if (resultsCorrectSpan) resultsCorrectSpan.textContent = correctCount;
+    if (resultsIncorrectSpan) resultsIncorrectSpan.textContent = incorrectCount;
+    if (resultsScoreSpan) resultsScoreSpan.textContent = score;
+    if (answerReviewDiv) answerReviewDiv.innerHTML = reviewHtml.join('');
+
+    // Save results to Firestore
+    const studentId = studentIdInput ? studentIdInput.value.trim() : 'anonymous';
+    if (studentId && db) {
+        try {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const resultsCollectionRef = collection(db, `artifacts/${appId}/public/data/studentResults`);
+            await addDoc(resultsCollectionRef, {
+                studentId: studentId,
+                totalQuestions: totalQuestions,
+                correctAnswers: correctCount,
+                incorrectAnswers: incorrectCount,
+                score: parseFloat(score),
+                timeTakenSeconds: (parseInt(timeLimitInput.value) * 60) - timeLeft, // Calculate time taken
+                date: new Date(),
+                // Store a simplified version of questions and answers for review
+                quizDetails: quizQuestions.map((q, i) => ({
+                    questionId: q.id,
+                    questionText: q.question,
+                    options: q.options,
+                    correctAnswer: q.correctAnswer,
+                    studentAnswer: studentAnswers[i]
+                }))
+            });
+            console.log("Test results saved for student:", studentId);
+            showMessage("Test submitted and results saved!", true, configMessageBox);
+        } catch (error) {
+            console.error("Error saving test results:", error);
+            showMessage("Error saving test results. Please try again.", false, configMessageBox);
+        }
+    }
+
 
     // Show results section, hide quiz section
-    quizSection.classList.add('hidden');
-    resultsSection.classList.remove('hidden');
+    if (quizSection) quizSection.classList.add('hidden');
+    if (resultsSection) resultsSection.classList.remove('hidden');
 }
 
 /**
@@ -603,13 +860,63 @@ function submitTest() {
  */
 function resetTest() {
     // Hide results, show config
-    resultsSection.classList.add('hidden');
-    configSection.classList.remove('hidden');
+    if (resultsSection) resultsSection.classList.add('hidden');
+    if (configSection) configSection.classList.remove('hidden');
     // Clear any previous messages
-    configMessageBox.classList.add('hidden');
+    if (configMessageBox) configMessageBox.classList.add('hidden');
     // Ensure start button is enabled if questions are available
-    if (allQuestions.length > 0) {
+    if (allQuestions.length > 0 && startTestBtn) {
         startTestBtn.disabled = false;
+    }
+    // Refresh previous results for the current student ID
+    fetchAndDisplayPreviousResults();
+}
+
+/**
+ * Fetches and displays previous test results for the entered Student ID.
+ */
+async function fetchAndDisplayPreviousResults() {
+    const studentId = studentIdInput ? studentIdInput.value.trim() : '';
+    if (!studentId || !db || !previousResultsList) {
+        if (previousResultsList) previousResultsList.innerHTML = '<p class="text-gray-500">Enter a Student ID to see previous results.</p>';
+        return;
+    }
+
+    if (previousResultsList) previousResultsList.innerHTML = '<p class="text-gray-500 text-center">Loading previous results...</p>';
+
+    try {
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const resultsCollectionRef = collection(db, `artifacts/${appId}/public/data/studentResults`);
+        // Query for results matching the studentId
+        const q = query(resultsCollectionRef, where("studentId", "==", studentId));
+        const querySnapshot = await getDocs(q);
+
+        if (previousResultsList) previousResultsList.innerHTML = ''; // Clear loading message
+
+        if (querySnapshot.empty) {
+            if (previousResultsList) previousResultsList.innerHTML = `<p class="text-gray-500 text-center">No previous results found for "${studentId}".</p>`;
+            return;
+        }
+
+        querySnapshot.forEach(docSnap => {
+            const result = docSnap.data();
+            const date = result.date ? new Date(result.date.toDate()).toLocaleString() : 'N/A';
+            const timeTaken = result.timeTakenSeconds ? `${Math.floor(result.timeTakenSeconds / 60)}m ${result.timeTakenSeconds % 60}s` : 'N/A';
+
+            const resultCard = document.createElement('div');
+            resultCard.className = 'bg-white p-4 rounded-lg shadow border border-gray-100 mb-2';
+            resultCard.innerHTML = `
+                <p class="font-semibold text-gray-800">Date: ${date}</p>
+                <p>Score: <span class="text-blue-600 font-bold">${result.score}%</span></p>
+                <p>Correct: ${result.correctAnswers} / ${result.totalQuestions}</p>
+                <p>Time Taken: ${timeTaken}</p>
+            `;
+            if (previousResultsList) previousResultsList.appendChild(resultCard);
+        });
+
+    } catch (error) {
+        console.error("Error fetching previous results:", error);
+        if (previousResultsList) previousResultsList.innerHTML = '<p class="text-red-500 text-center">Error loading previous results.</p>';
     }
 }
 
