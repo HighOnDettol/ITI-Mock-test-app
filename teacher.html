@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teacher Section - ITI Mock Test App</title>
+    <!-- Content Security Policy (CSP) to allow Firebase and Tailwind CDN scripts -->
+    <!-- This is crucial for GitHub Pages which might have a restrictive default CSP -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.tailwindcss.com;
+        connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://*.googleapis.com https://securetoken.googleapis.com;
+        img-src 'self' data: https://placehold.co;
+        style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com;
+        font-src 'self' https://fonts.gstatic.com;
+    ">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts - Inter -->
@@ -29,24 +39,24 @@
                 <div id="signupFields" class="hidden space-y-4">
                     <div>
                         <label for="teacherName" class="block text-gray-700 text-sm font-bold mb-2">Your Name:</label>
-                        <input type="text" id="teacherName" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Dr. Prabhat Kumar" required>
+                        <input type="text" id="teacherName" name="teacherName" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Dr. Prabhat Kumar" required>
                     </div>
                     <div>
                         <label for="subjectTaught" class="block text-gray-700 text-sm font-bold mb-2">Subject Taught:</label>
-                        <input type="text" id="subjectTaught" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Physics, Computer Science" required>
+                        <input type="text" id="subjectTaught" name="subjectTaught" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Physics, Computer Science" required>
                     </div>
                 </div>
                 <div>
                     <label for="email" class="block text-gray-700 text-sm font-bold mb-2">Email:</label>
-                    <input type="email" id="email" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="teacher@example.com" required>
+                    <input type="email" id="email" name="email" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="teacher@example.com" required>
                 </div>
                 <div>
                     <label for="password" class="block text-gray-700 text-sm font-bold mb-2">Password:</label>
-                    <input type="password" id="password" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="********" required>
+                    <input type="password" id="password" name="password" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="********" required>
                 </div>
                 <div id="confirmPasswordField" class="hidden">
                     <label for="confirmPassword" class="block text-gray-700 text-sm font-bold mb-2">Confirm Password:</label>
-                    <input type="password" id="confirmPassword" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="********" required>
+                    <input type="password" id="confirmPassword" name="confirmPassword" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="********" required>
                 </div>
                 <button type="submit" id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg">
                     Login
@@ -72,30 +82,30 @@
                 <h2 class="text-2xl font-semibold text-gray-700 mb-4" id="formTitle">Add New Question</h2>
                 <form id="addQuestionForm" class="space-y-4">
                     <!-- Hidden input to store the ID of the question being edited -->
-                    <input type="hidden" id="questionIdToEdit">
+                    <input type="hidden" id="questionIdToEdit" name="questionIdToEdit">
                     <div>
                         <label for="questionText" class="block text-gray-700 text-sm font-bold mb-2">Question:</label>
-                        <textarea id="questionText" rows="3" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your question here..." required></textarea>
+                        <textarea id="questionText" name="questionText" rows="3" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your question here..." required></textarea>
                     </div>
                     <div>
                         <label for="optionA" class="block text-gray-700 text-sm font-bold mb-2">Option A:</label>
-                        <input type="text" id="optionA" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option A" required>
+                        <input type="text" id="optionA" name="optionA" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option A" required>
                     </div>
                     <div>
                         <label for="optionB" class="block text-gray-700 text-sm font-bold mb-2">Option B:</label>
-                        <input type="text" id="optionB" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option B" required>
+                        <input type="text" id="optionB" name="optionB" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option B" required>
                     </div>
                     <div>
                         <label for="optionC" class="block text-gray-700 text-sm font-bold mb-2">Option C:</label>
-                        <input type="text" id="optionC" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option C" required>
+                        <input type="text" id="optionC" name="optionC" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option C" required>
                     </div>
                     <div>
                         <label for="optionD" class="block text-gray-700 text-sm font-bold mb-2">Option D:</label>
-                        <input type="text" id="optionD" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option D" required>
+                        <input type="text" id="optionD" name="optionD" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option D" required>
                     </div>
                     <div>
                         <label for="correctOption" class="block text-gray-700 text-sm font-bold mb-2">Correct Option (A, B, C, or D):</label>
-                        <input type="text" id="correctOption" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., A" maxlength="1" pattern="[ABCDabcd]" title="Enter A, B, C, or D" required>
+                        <input type="text" id="correctOption" name="correctOption" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., A" maxlength="1" pattern="[ABCDabcd]" title="Enter A, B, C, or D" required>
                     </div>
                     <button type="submit" id="submitQuestionBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg">
                         Add Question
