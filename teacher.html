@@ -26,6 +26,16 @@
         <div id="authSection" class="p-6 bg-blue-50 rounded-lg border border-blue-200 mb-8">
             <h2 class="text-2xl font-semibold text-blue-800 mb-4 text-center">Teacher Login / Signup</h2>
             <form id="authForm" class="space-y-4">
+                <div id="signupFields" class="hidden space-y-4">
+                    <div>
+                        <label for="teacherName" class="block text-gray-700 text-sm font-bold mb-2">Your Name:</label>
+                        <input type="text" id="teacherName" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Dr. Prabhat Kumar" required>
+                    </div>
+                    <div>
+                        <label for="subjectTaught" class="block text-gray-700 text-sm font-bold mb-2">Subject Taught:</label>
+                        <input type="text" id="subjectTaught" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Physics, Computer Science" required>
+                    </div>
+                </div>
                 <div>
                     <label for="email" class="block text-gray-700 text-sm font-bold mb-2">Email:</label>
                     <input type="email" id="email" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="teacher@example.com" required>
@@ -33,6 +43,10 @@
                 <div>
                     <label for="password" class="block text-gray-700 text-sm font-bold mb-2">Password:</label>
                     <input type="password" id="password" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="********" required>
+                </div>
+                <div id="confirmPasswordField" class="hidden">
+                    <label for="confirmPassword" class="block text-gray-700 text-sm font-bold mb-2">Confirm Password:</label>
+                    <input type="password" id="confirmPassword" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="********" required>
                 </div>
                 <button type="submit" id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg">
                     Login
@@ -48,7 +62,7 @@
         <div id="teacherContent" class="hidden">
             <!-- User ID Display -->
             <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200 text-blue-800 text-sm font-medium">
-                Logged in as: <span id="userEmailDisplay" class="font-bold">Loading...</span> (UID: <span id="userIdDisplay" class="font-bold">Loading...</span>)
+                Logged in as: <span id="userDisplayName" class="font-bold">Loading...</span> (<span id="userEmailDisplay" class="font-bold">Loading...</span>) (UID: <span id="userIdDisplay" class="font-bold">Loading...</span>)
                 <span id="authStatus" class="ml-4 font-bold"></span>
                 <button id="logoutBtn" class="ml-4 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-1 px-3 rounded-md transition duration-300 ease-in-out">Logout</button>
             </div>
