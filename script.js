@@ -8,12 +8,12 @@ import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, wh
 // You obtained this from the Firebase Console in Step 1.
 const firebaseConfig = {
     apiKey: "AIzaSyAnd2fGeYFVy3-BfgHUVft_eVAPLCOdtJM",
-  authDomain: "iti-mock-test-app.firebaseapp.com",
-  projectId: "iti-mock-test-app",
-  storageBucket: "iti-mock-test-app.firebasestorage.app",
-  messagingSenderId: "1050492527635",
-  appId: "1:1050492527635:web:b1d88a3442b1329590cbe6",
-  measurementId: "G-C28JE2Y4NH"
+    authDomain: "iti-mock-test-app.firebaseapp.com",
+    projectId: "iti-mock-test-app",
+    storageBucket: "iti-mock-test-app.firebasestorage.app",
+    messagingSenderId: "1050492527635",
+    appId: "1:1050492527635:web:b1d88a3442b1329590cbe6",
+    measurementId: "G-C28JE2Y4NH"
 };
 
 // Global variables for Firebase instances and user ID
