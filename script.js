@@ -1,13 +1,13 @@
 // Import Firebase services
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, where, getDocs, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- Firebase Configuration ---
 // IMPORTANT: Replace this with YOUR Firebase project's configuration!
 // You obtained this from the Firebase Console in Step 1.
 const firebaseConfig = {
-   apiKey: "AIzaSyAnd2fGeYFVy3-BfgHUVft_eVAPLCOdtJM",
+    apiKey: "AIzaSyAnd2fGeYFVy3-BfgHUVft_eVAPLCOdtJM",
   authDomain: "iti-mock-test-app.firebaseapp.com",
   projectId: "iti-mock-test-app",
   storageBucket: "iti-mock-test-app.firebasestorage.app",
@@ -221,6 +221,16 @@ let authMessageBox;
 let addQuestionForm;
 let questionsList;
 let loadingMessage;
+let questionText;
+let optionA;
+let optionB;
+let optionC;
+let optionD;
+let correctOption;
+let questionIdToEdit; // New: Hidden input for question ID being edited
+let formTitle; // New: Title of the form
+let submitQuestionBtn; // New: Submit button for the form
+let cancelEditBtn; // New: Cancel edit button
 
 
 function setupTeacherPage() {
@@ -238,6 +248,19 @@ function setupTeacherPage() {
     addQuestionForm = document.getElementById('addQuestionForm');
     questionsList = document.getElementById('questionsList');
     loadingMessage = document.getElementById('loadingMessage');
+
+    // Get form input elements
+    questionText = document.getElementById('questionText');
+    optionA = document.getElementById('optionA');
+    optionB = document.getElementById('optionB');
+    optionC = document.getElementById('optionC');
+    optionD = document.getElementById('optionD');
+    correctOption = document.getElementById('correctOption');
+    questionIdToEdit = document.getElementById('questionIdToEdit'); // Get the hidden input
+    formTitle = document.getElementById('formTitle'); // Get the form title
+    submitQuestionBtn = document.getElementById('submitQuestionBtn'); // Get the submit button
+    cancelEditBtn = document.getElementById('cancelEditBtn'); // Get the cancel edit button
+
 
     // Display user info if logged in
     if (currentUserId) {
@@ -272,7 +295,10 @@ function setupTeacherPage() {
         logoutBtn.addEventListener('click', handleLogout);
     }
     if (addQuestionForm) {
-        addQuestionForm.addEventListener('submit', addQuestion);
+        addQuestionForm.addEventListener('submit', handleQuestionFormSubmit); // Changed to a new handler
+    }
+    if (cancelEditBtn) {
+        cancelEditBtn.addEventListener('click', cancelEdit);
     }
 }
 
@@ -357,31 +383,46 @@ async function handleLogout() {
 }
 
 /**
- * Adds a new question to Firestore, only if the user is an authorized teacher.
+ * Main handler for the question form. Determines if it's an add or update operation.
  * @param {Event} event - The form submission event.
  */
-async function addQuestion(event) {
-    event.preventDefault(); // Prevent default form submission
+async function handleQuestionFormSubmit(event) {
+    event.preventDefault();
 
     if (!isTeacherAuthorized) {
-        showMessage("You are not authorized to add questions.", false, messageBox);
+        showMessage("You are not authorized to manage questions.", false, messageBox);
         return;
     }
 
+    const qId = questionIdToEdit.value; // Get the ID from the hidden input
+
+    if (qId) {
+        // If questionIdToEdit has a value, it's an update operation
+        await updateQuestion(qId);
+    } else {
+        // Otherwise, it's an add new question operation
+        await addQuestion();
+    }
+}
+
+/**
+ * Adds a new question to Firestore.
+ */
+async function addQuestion() {
     // Get form values
-    const questionText = document.getElementById('questionText').value.trim();
-    const optionA = document.getElementById('optionA').value.trim();
-    const optionB = document.getElementById('optionB').value.trim();
-    const optionC = document.getElementById('optionC').value.trim();
-    const optionD = document.getElementById('optionD').value.trim();
-    const correctOption = document.getElementById('correctOption').value.trim().toUpperCase();
+    const qText = questionText.value.trim();
+    const optA = optionA.value.trim();
+    const optB = optionB.value.trim();
+    const optC = optionC.value.trim();
+    const optD = optionD.value.trim();
+    const correctOpt = correctOption.value.trim().toUpperCase();
 
     // Basic validation
-    if (!questionText || !optionA || !optionB || !optionC || !optionD || !correctOption) {
+    if (!qText || !optA || !optB || !optC || !optD || !correctOpt) {
         showMessage("Please fill in all fields.", false, messageBox);
         return;
     }
-    if (!['A', 'B', 'C', 'D'].includes(correctOption)) {
+    if (!['A', 'B', 'C', 'D'].includes(correctOpt)) {
         showMessage("Correct option must be A, B, C, or D.", false, messageBox);
         return;
     }
@@ -391,17 +432,17 @@ async function addQuestion(event) {
         const questionsCollectionRef = collection(db, `artifacts/${appId}/public/data/questions`);
 
         await addDoc(questionsCollectionRef, {
-            question: questionText,
+            question: qText,
             options: {
-                A: optionA,
-                B: optionB,
-                C: optionC,
-                D: optionD
+                A: optA,
+                B: optB,
+                C: optC,
+                D: optD
             },
-            correctAnswer: correctOption,
+            correctAnswer: correctOpt,
             createdAt: new Date(),
             addedBy: currentUserId,
-            addedByEmail: currentUserEmail || 'N/A' // Store email for easier identification
+            addedByEmail: currentUserEmail || 'N/A'
         });
 
         showMessage("Question added successfully!", true, messageBox);
@@ -411,6 +452,57 @@ async function addQuestion(event) {
         showMessage("Error adding question. Please try again.", false, messageBox);
     }
 }
+
+/**
+ * Updates an existing question in Firestore.
+ * @param {string} questionId - The ID of the question document to update.
+ */
+async function updateQuestion(questionId) {
+    // Get form values
+    const qText = questionText.value.trim();
+    const optA = optionA.value.trim();
+    const optB = optionB.value.trim();
+    const optC = optionC.value.trim();
+    const optD = optionD.value.trim();
+    const correctOpt = correctOption.value.trim().toUpperCase();
+
+    // Basic validation
+    if (!qText || !optA || !optB || !optC || !optD || !correctOpt) {
+        showMessage("Please fill in all fields.", false, messageBox);
+        return;
+    }
+    if (!['A', 'B', 'C', 'D'].includes(correctOpt)) {
+        showMessage("Correct option must be A, B, C, or D.", false, messageBox);
+        return;
+    }
+
+    try {
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const questionDocRef = doc(db, `artifacts/${appId}/public/data/questions`, questionId);
+
+        await updateDoc(questionDocRef, {
+            question: qText,
+            options: {
+                A: optA,
+                B: optB,
+                C: optC,
+                D: optD
+            },
+            correctAnswer: correctOpt,
+            // Do not update createdAt or addedBy, as these refer to original creation
+            lastModifiedAt: new Date(), // Add a last modified timestamp
+            lastModifiedBy: currentUserId,
+            lastModifiedByEmail: currentUserEmail || 'N/A'
+        });
+
+        showMessage("Question updated successfully!", true, messageBox);
+        cancelEdit(); // Reset form after update
+    } catch (error) {
+        console.error("Error updating question:", error);
+        showMessage("Error updating question. Please try again.", false, messageBox);
+    }
+}
+
 
 /**
  * Sets up a real-time listener for questions in Firestore.
@@ -438,9 +530,9 @@ function setupQuestionsListener() {
             return;
         }
 
-        snapshot.forEach((doc) => {
-            const questionData = doc.data();
-            const questionId = doc.id;
+        snapshot.forEach((docSnap) => {
+            const questionData = docSnap.data();
+            const questionId = docSnap.id;
 
             const questionCard = document.createElement('div');
             questionCard.className = 'bg-white p-4 rounded-lg shadow border border-gray-100';
@@ -454,15 +546,25 @@ function setupQuestionsListener() {
                 </ul>
                 <p class="text-green-600 font-medium mb-2">Correct Answer: ${questionData.correctAnswer}</p>
                 <p class="text-gray-500 text-xs">Added by: ${questionData.addedByEmail || questionData.addedBy || 'Unknown'} on ${questionData.createdAt ? new Date(questionData.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
-                <button data-id="${questionId}" class="delete-btn mt-3 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-1 px-3 rounded-md transition duration-300 ease-in-out">
-                    Delete
-                </button>
+                ${questionData.lastModifiedAt ? `<p class="text-gray-500 text-xs">Last Modified: ${new Date(questionData.lastModifiedAt.toDate()).toLocaleString()} by ${questionData.lastModifiedByEmail || questionData.lastModifiedBy || 'Unknown'}</p>` : ''}
+                <div class="flex space-x-2 mt-3">
+                    <button data-id="${questionId}" class="edit-btn bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold py-1 px-3 rounded-md transition duration-300 ease-in-out">
+                        Edit
+                    </button>
+                    <button data-id="${questionId}" class="delete-btn bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-1 px-3 rounded-md transition duration-300 ease-in-out">
+                        Delete
+                    </button>
+                </div>
             `;
             if (questionsList) questionsList.appendChild(questionCard);
         });
 
+        // Add event listeners to newly created buttons
         document.querySelectorAll('.delete-btn').forEach(button => {
             button.addEventListener('click', handleDeleteQuestion);
+        });
+        document.querySelectorAll('.edit-btn').forEach(button => {
+            button.addEventListener('click', handleEditQuestion); // New event listener
         });
     }, (error) => {
         console.error("Error listening to questions:", error);
@@ -502,6 +604,65 @@ async function handleDeleteQuestion(event) {
     }
 }
 
+/**
+ * Populates the form with the data of the question to be edited.
+ * @param {Event} event - The click event from the edit button.
+ */
+async function handleEditQuestion(event) {
+    if (!isTeacherAuthorized) {
+        showMessage("You are not authorized to edit questions.", false, messageBox);
+        return;
+    }
+
+    const questionId = event.target.dataset.id;
+    if (!questionId) {
+        showMessage("Could not find question ID to edit.", false, messageBox);
+        return;
+    }
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const questionDocRef = doc(db, `artifacts/${appId}/public/data/questions`, questionId);
+
+    try {
+        const docSnap = await getDoc(questionDocRef);
+        if (docSnap.exists()) {
+            const questionData = docSnap.data();
+            // Populate the form fields
+            questionText.value = questionData.question;
+            optionA.value = questionData.options.A;
+            optionB.value = questionData.options.B;
+            optionC.value = questionData.options.C;
+            optionD.value = questionData.options.D;
+            correctOption.value = questionData.correctAnswer;
+            questionIdToEdit.value = questionId; // Store the ID of the question being edited
+
+            // Change form title and button text
+            formTitle.textContent = "Edit Question";
+            submitQuestionBtn.textContent = "Update Question";
+            cancelEditBtn.classList.remove('hidden'); // Show cancel button
+
+            showMessage("Form populated for editing.", true, messageBox);
+        } else {
+            showMessage("Question not found for editing.", false, messageBox);
+        }
+    } catch (error) {
+        console.error("Error fetching question for edit:", error);
+        showMessage("Error loading question for edit. Please try again.", false, messageBox);
+    }
+}
+
+/**
+ * Resets the form to "Add New Question" mode.
+ */
+function cancelEdit() {
+    addQuestionForm.reset(); // Clear the form
+    questionIdToEdit.value = ''; // Clear the hidden ID
+    formTitle.textContent = "Add New Question"; // Reset title
+    submitQuestionBtn.textContent = "Add Question"; // Reset button text
+    cancelEditBtn.classList.add('hidden'); // Hide cancel button
+    showMessage("Edit cancelled. Ready to add new question.", true, messageBox);
+}
+
 
 // --- Student Page Specific Logic ---
 let allQuestions = [];
@@ -519,9 +680,9 @@ const startTestBtn = document.getElementById('startTestBtn');
 const numQuestionsInput = document.getElementById('numQuestions');
 const timeLimitInput = document.getElementById('timeLimit');
 const configMessageBox = document.getElementById('configMessageBox');
-const studentIdInput = document.getElementById('studentId'); // New: Student ID input
-const previousResultsSection = document.getElementById('previousResultsSection'); // New: Previous results section
-const previousResultsList = document.getElementById('previousResultsList'); // New: List for previous results
+const studentIdInput = document.getElementById('studentId');
+const previousResultsSection = document.getElementById('previousResultsSection');
+const previousResultsList = document.getElementById('previousResultsList');
 
 const currentQuestionNumSpan = document.getElementById('currentQuestionNum');
 const totalQuestionsNumSpan = document.getElementById('totalQuestionsNum');
@@ -652,6 +813,7 @@ async function startTest() {
 
     // Hide config, show quiz
     if (configSection) configSection.classList.add('hidden');
+    if (previousResultsSection) previousResultsSection.classList.add('hidden'); // Hide previous results
     if (quizSection) quizSection.classList.remove('hidden');
     if (resultsSection) resultsSection.classList.add('hidden'); // Ensure results are hidden
 
@@ -862,6 +1024,7 @@ function resetTest() {
     // Hide results, show config
     if (resultsSection) resultsSection.classList.add('hidden');
     if (configSection) configSection.classList.remove('hidden');
+    if (previousResultsSection) previousResultsSection.classList.remove('hidden'); // Show previous results again
     // Clear any previous messages
     if (configMessageBox) configMessageBox.classList.add('hidden');
     // Ensure start button is enabled if questions are available
