@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Mock Test - ITI Mock Test App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* Light gray background */
+        }
+        /* Custom radio button styling */
+        input[type="radio"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            display: inline-block;
+            width: 1.25rem; /* 20px */
+            height: 1.25rem; /* 20px */
+            border-radius: 50%;
+            border: 2px solid #cbd5e0; /* border-gray-300 */
+            background-color: #fff;
+            position: relative;
+            cursor: pointer;
+            margin-right: 0.5rem; /* mr-2 */
+            vertical-align: middle;
+        }
+
+        input[type="radio"]:checked {
+            border-color: #3b82f6; /* blue-500 */
+            background-color: #3b82f6; /* blue-500 */
+        }
+
+        input[type="radio"]:checked::after {
+            content: '';
+            display: block;
+            width: 0.5rem; /* 8px */
+            height: 0.5rem; /* 8px */
+            border-radius: 50%;
+            background-color: #fff;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Styles for selected correct/incorrect answers */
+        .option-label.correct {
+            background-color: #d1fae5; /* green-100 */
+            border-color: #10b981; /* green-500 */
+        }
+        .option-label.incorrect {
+            background-color: #fee2e2; /* red-100 */
+            border-color: #ef4444; /* red-500 */
+        }
+        .option-label.correct-unselected {
+            background-color: #d1fae5; /* green-100 */
+            border-color: #10b981; /* green-500 */
+            opacity: 0.7; /* Make it slightly transparent if not selected by user */
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-lg shadow-xl max-w-4xl w-full mb-8">
+        <h1 class="text-4xl font-bold text-gray-800 mb-6 text-center">Student Mock Test</h1>
+        <p class="text-lg text-gray-600 mb-8 text-center" id="testDescription">
+            Prepare for your exams by taking a customizable mock test.
+        </p>
+
+        <!-- Configuration and Start Section -->
+        <div id="configSection" class="p-6 bg-gray-50 rounded-lg border border-gray-200 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Test Configuration</h2>
+            <div class="mb-4">
+                <label for="numQuestions" class="block text-gray-700 text-sm font-bold mb-2">Number of Questions (30-700+):</label>
+                <input type="number" id="numQuestions" value="30" min="1" max="700"
+                       class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="text-sm text-gray-500 mt-1">Adjust the number of questions for your mock test.</p>
+            </div>
+            <div class="mb-6">
+                <label for="timeLimit" class="block text-gray-700 text-sm font-bold mb-2">Time Limit (minutes):</label>
+                <input type="number" id="timeLimit" value="30" min="1"
+                       class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="text-sm text-gray-500 mt-1">Set the duration of the test in minutes.</p>
+            </div>
+            <button id="startTestBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg">
+                Start Mock Test
+            </button>
+            <div id="configMessageBox" class="mt-4 p-3 rounded-lg text-center hidden"></div>
+        </div>
+
+        <!-- Quiz Section (Hidden by default) -->
+        <div id="quizSection" class="hidden p-6 bg-white rounded-lg border border-gray-200 shadow-md">
+            <div class="flex justify-between items-center mb-4">
+                <p class="text-gray-700 text-lg font-semibold">Question <span id="currentQuestionNum">1</span> of <span id="totalQuestionsNum"></span></p>
+                <p class="text-red-600 text-xl font-bold">Time Left: <span id="timer">00:00</span></p>
+            </div>
+            <div id="questionContainer" class="mb-6">
+                <!-- Question and options will be loaded here -->
+                <p class="text-gray-500 text-center">Loading question...</p>
+            </div>
+            <div class="flex justify-between">
+                <button id="prevQuestionBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-300 ease-in-out" disabled>
+                    Previous
+                </button>
+                <button id="nextQuestionBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 ease-in-out">
+                    Next
+                </button>
+                <button id="submitTestBtn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 ease-in-out hidden">
+                    Submit Test
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Section (Hidden by default) -->
+        <div id="resultsSection" class="hidden p-6 bg-white rounded-lg border border-gray-200 shadow-md">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4 text-center">Test Results</h2>
+            <p class="text-xl text-gray-700 mb-2">Total Questions: <span id="resultsTotalQuestions" class="font-semibold"></span></p>
+            <p class="text-xl text-green-600 mb-2">Correct Answers: <span id="resultsCorrect" class="font-semibold"></span></p>
+            <p class="text-xl text-red-600 mb-2">Incorrect Answers: <span id="resultsIncorrect" class="font-semibold"></span></p>
+            <p class="text-xl text-blue-600 mb-4">Score: <span id="resultsScore" class="font-semibold"></span>%</p>
+
+            <h3 class="text-2xl font-semibold text-gray-700 mb-4 mt-8">Review Your Answers</h3>
+            <div id="answerReview" class="space-y-4">
+                <!-- Reviewed questions will be loaded here -->
+            </div>
+
+            <button id="retakeTestBtn" class="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg">
+                Retake Test
+            </button>
+        </div>
+
+        <!-- Back to Home Button -->
+        <div class="mt-8 text-center">
+            <a href="index.html" class="inline-block bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-300 ease-in-out">
+                Back to Home
+            </a>
+        </div>
+    </div>
+
+    <!-- Firebase and main script -->
+    <script type="module" src="script.js"></script>
+</body>
+</html>
