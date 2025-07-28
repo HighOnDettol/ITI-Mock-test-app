@@ -53,10 +53,12 @@
                 <button id="logoutBtn" class="ml-4 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-1 px-3 rounded-md transition duration-300 ease-in-out">Logout</button>
             </div>
 
-            <!-- Add Question Form -->
+            <!-- Add/Edit Question Form -->
             <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Add New Question</h2>
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4" id="formTitle">Add New Question</h2>
                 <form id="addQuestionForm" class="space-y-4">
+                    <!-- Hidden input to store the ID of the question being edited -->
+                    <input type="hidden" id="questionIdToEdit">
                     <div>
                         <label for="questionText" class="block text-gray-700 text-sm font-bold mb-2">Question:</label>
                         <textarea id="questionText" rows="3" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your question here..." required></textarea>
@@ -81,8 +83,11 @@
                         <label for="correctOption" class="block text-gray-700 text-sm font-bold mb-2">Correct Option (A, B, C, or D):</label>
                         <input type="text" id="correctOption" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., A" maxlength="1" pattern="[ABCDabcd]" title="Enter A, B, C, or D" required>
                     </div>
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg">
+                    <button type="submit" id="submitQuestionBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg">
                         Add Question
+                    </button>
+                    <button type="button" id="cancelEditBtn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out mt-2 hidden">
+                        Cancel Edit
                     </button>
                     <div id="messageBox" class="mt-4 p-3 rounded-lg text-center hidden"></div>
                 </form>
