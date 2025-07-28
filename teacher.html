@@ -19,55 +19,82 @@
     <div class="bg-white p-8 rounded-lg shadow-xl max-w-4xl w-full mb-8">
         <h1 class="text-4xl font-bold text-gray-800 mb-6 text-center">Teacher Section</h1>
         <p class="text-lg text-gray-600 mb-8 text-center">
-            Add new questions to the pool or view/delete existing ones.
+            Manage questions for the mock tests.
         </p>
 
-        <!-- User ID Display -->
-        <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200 text-blue-800 text-sm font-medium">
-            Your User ID: <span id="userIdDisplay" class="font-bold">Loading...</span> (This helps identify your data)
-        </div>
-
-        <!-- Add Question Form -->
-        <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Add New Question</h2>
-            <form id="addQuestionForm" class="space-y-4">
+        <!-- Login/Signup Section -->
+        <div id="authSection" class="p-6 bg-blue-50 rounded-lg border border-blue-200 mb-8">
+            <h2 class="text-2xl font-semibold text-blue-800 mb-4 text-center">Teacher Login / Signup</h2>
+            <form id="authForm" class="space-y-4">
                 <div>
-                    <label for="questionText" class="block text-gray-700 text-sm font-bold mb-2">Question:</label>
-                    <textarea id="questionText" rows="3" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your question here..." required></textarea>
+                    <label for="email" class="block text-gray-700 text-sm font-bold mb-2">Email:</label>
+                    <input type="email" id="email" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="teacher@example.com" required>
                 </div>
                 <div>
-                    <label for="optionA" class="block text-gray-700 text-sm font-bold mb-2">Option A:</label>
-                    <input type="text" id="optionA" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option A" required>
+                    <label for="password" class="block text-gray-700 text-sm font-bold mb-2">Password:</label>
+                    <input type="password" id="password" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="********" required>
                 </div>
-                <div>
-                    <label for="optionB" class="block text-gray-700 text-sm font-bold mb-2">Option B:</label>
-                    <input type="text" id="optionB" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option B" required>
-                </div>
-                <div>
-                    <label for="optionC" class="block text-gray-700 text-sm font-bold mb-2">Option C:</label>
-                    <input type="text" id="optionC" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option C" required>
-                </div>
-                <div>
-                    <label for="optionD" class="block text-gray-700 text-sm font-bold mb-2">Option D:</label>
-                    <input type="text" id="optionD" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option D" required>
-                </div>
-                <div>
-                    <label for="correctOption" class="block text-gray-700 text-sm font-bold mb-2">Correct Option (A, B, C, or D):</label>
-                    <input type="text" id="correctOption" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., A" maxlength="1" pattern="[ABCDabcd]" title="Enter A, B, C, or D" required>
-                </div>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg">
-                    Add Question
+                <button type="submit" id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg">
+                    Login
                 </button>
-                <div id="messageBox" class="mt-4 p-3 rounded-lg text-center hidden"></div>
+                <button type="button" id="signupBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg mt-2">
+                    Sign Up (First Time Teachers)
+                </button>
+                <div id="authMessageBox" class="mt-4 p-3 rounded-lg text-center hidden"></div>
             </form>
         </div>
 
-        <!-- Existing Questions Section -->
-        <div class="p-6 bg-white rounded-lg border border-gray-200 shadow-md">
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Existing Questions</h2>
-            <div id="questionsList" class="space-y-4">
-                <!-- Questions will be loaded here by JavaScript -->
-                <p class="text-gray-500 text-center" id="loadingMessage">Loading questions...</p>
+        <!-- Teacher Content Section (Hidden by default, shown after login) -->
+        <div id="teacherContent" class="hidden">
+            <!-- User ID Display -->
+            <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200 text-blue-800 text-sm font-medium">
+                Logged in as: <span id="userEmailDisplay" class="font-bold">Loading...</span> (UID: <span id="userIdDisplay" class="font-bold">Loading...</span>)
+                <span id="authStatus" class="ml-4 font-bold"></span>
+                <button id="logoutBtn" class="ml-4 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-1 px-3 rounded-md transition duration-300 ease-in-out">Logout</button>
+            </div>
+
+            <!-- Add Question Form -->
+            <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Add New Question</h2>
+                <form id="addQuestionForm" class="space-y-4">
+                    <div>
+                        <label for="questionText" class="block text-gray-700 text-sm font-bold mb-2">Question:</label>
+                        <textarea id="questionText" rows="3" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your question here..." required></textarea>
+                    </div>
+                    <div>
+                        <label for="optionA" class="block text-gray-700 text-sm font-bold mb-2">Option A:</label>
+                        <input type="text" id="optionA" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option A" required>
+                    </div>
+                    <div>
+                        <label for="optionB" class="block text-gray-700 text-sm font-bold mb-2">Option B:</label>
+                        <input type="text" id="optionB" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option B" required>
+                    </div>
+                    <div>
+                        <label for="optionC" class="block text-gray-700 text-sm font-bold mb-2">Option C:</label>
+                        <input type="text" id="optionC" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option C" required>
+                    </div>
+                    <div>
+                        <label for="optionD" class="block text-gray-700 text-sm font-bold mb-2">Option D:</label>
+                        <input type="text" id="optionD" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Option D" required>
+                    </div>
+                    <div>
+                        <label for="correctOption" class="block text-gray-700 text-sm font-bold mb-2">Correct Option (A, B, C, or D):</label>
+                        <input type="text" id="correctOption" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., A" maxlength="1" pattern="[ABCDabcd]" title="Enter A, B, C, or D" required>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg">
+                        Add Question
+                    </button>
+                    <div id="messageBox" class="mt-4 p-3 rounded-lg text-center hidden"></div>
+                </form>
+            </div>
+
+            <!-- Existing Questions Section -->
+            <div class="p-6 bg-white rounded-lg border border-gray-200 shadow-md">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Existing Questions</h2>
+                <div id="questionsList" class="space-y-4">
+                    <!-- Questions will be loaded here by JavaScript -->
+                    <p class="text-gray-500 text-center" id="loadingMessage">Loading questions...</p>
+                </div>
             </div>
         </div>
 
