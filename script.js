@@ -22,6 +22,8 @@ let db;
 let auth;
 let currentUserId = null; // Stores the authenticated user's ID
 let currentUserEmail = null; // Stores the authenticated user's email
+let currentUserName = null; // New: Stores the authenticated teacher's name
+let currentUserSubject = null; // New: Stores the authenticated teacher's subject
 let isTeacherAuthorized = false; // Flag to check if the current user is an authorized teacher
 let authorizedTeacherUids = []; // Array to store UIDs of authorized teachers
 
@@ -29,6 +31,7 @@ let authorizedTeacherUids = []; // Array to store UIDs of authorized teachers
 const messageBox = document.getElementById('messageBox'); // Used in teacher.html for question messages
 const userIdDisplay = document.getElementById('userIdDisplay'); // Used in teacher.html
 const userEmailDisplay = document.getElementById('userEmailDisplay'); // Used in teacher.html
+const userDisplayName = document.getElementById('userDisplayName'); // New: Used in teacher.html
 const authStatus = document.getElementById('authStatus'); // Used in teacher.html
 
 /**
@@ -101,6 +104,8 @@ async function initializeFirebaseAndAuth() {
 
                 // Fetch authorized teacher UIDs
                 await fetchAuthorizedTeachers();
+                // Fetch teacher profile data
+                await fetchTeacherProfile(currentUserId);
 
                 if (window.location.pathname.includes('teacher.html')) {
                     setupTeacherPage();
@@ -113,6 +118,8 @@ async function initializeFirebaseAndAuth() {
                 console.log("No user signed in.");
                 currentUserId = null;
                 currentUserEmail = null;
+                currentUserName = null; // Reset
+                currentUserSubject = null; // Reset
                 isTeacherAuthorized = false; // Reset authorization status
 
                 // If on teacher page, ensure login form is shown
@@ -121,6 +128,7 @@ async function initializeFirebaseAndAuth() {
                     if (teacherContent) teacherContent.classList.add('hidden');
                     if (userEmailDisplay) userEmailDisplay.textContent = 'N/A';
                     if (userIdDisplay) userIdDisplay.textContent = 'N/A';
+                    if (userDisplayName) userDisplayName.textContent = 'N/A'; // Reset display name
                     if (authStatus) authStatus.textContent = '';
                 }
 
@@ -206,6 +214,35 @@ async function authorizeTeacher(uid) {
     }
 }
 
+/**
+ * Fetches the profile data for the current teacher.
+ * @param {string} uid - The UID of the teacher.
+ */
+async function fetchTeacherProfile(uid) {
+    if (!db || !uid) return;
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const teacherProfileDocRef = doc(db, `artifacts/${appId}/public/data/teacherProfiles`, uid);
+
+    try {
+        const docSnap = await getDoc(teacherProfileDocRef);
+        if (docSnap.exists()) {
+            const profileData = docSnap.data();
+            currentUserName = profileData.name || 'N/A';
+            currentUserSubject = profileData.subjectTaught || 'N/A';
+            console.log("Teacher profile fetched:", profileData);
+        } else {
+            currentUserName = currentUserEmail || 'Anonymous'; // Fallback to email if no profile
+            currentUserSubject = 'N/A';
+            console.log("No teacher profile found for UID:", uid);
+        }
+    } catch (error) {
+        console.error("Error fetching teacher profile:", error);
+        currentUserName = currentUserEmail || 'Anonymous';
+        currentUserSubject = 'N/A';
+    }
+}
+
 
 // --- Teacher Page Specific Logic ---
 let authSection;
@@ -218,6 +255,14 @@ let signupBtn;
 let logoutBtn;
 let authMessageBox;
 
+// New signup fields
+let signupFields;
+let teacherNameInput;
+let subjectTaughtInput;
+let confirmPasswordField;
+let confirmPasswordInput;
+
+
 let addQuestionForm;
 let questionsList;
 let loadingMessage;
@@ -227,10 +272,10 @@ let optionB;
 let optionC;
 let optionD;
 let correctOption;
-let questionIdToEdit; // New: Hidden input for question ID being edited
-let formTitle; // New: Title of the form
-let submitQuestionBtn; // New: Submit button for the form
-let cancelEditBtn; // New: Cancel edit button
+let questionIdToEdit; // Hidden input for question ID being edited
+let formTitle; // Title of the form
+let submitQuestionBtn; // Submit button for the form
+let cancelEditBtn; // Cancel edit button
 
 
 function setupTeacherPage() {
@@ -244,6 +289,14 @@ function setupTeacherPage() {
     signupBtn = document.getElementById('signupBtn');
     logoutBtn = document.getElementById('logoutBtn');
     authMessageBox = document.getElementById('authMessageBox');
+
+    // Get new signup fields
+    signupFields = document.getElementById('signupFields');
+    teacherNameInput = document.getElementById('teacherName');
+    subjectTaughtInput = document.getElementById('subjectTaught');
+    confirmPasswordField = document.getElementById('confirmPasswordField');
+    confirmPasswordInput = document.getElementById('confirmPassword');
+
 
     addQuestionForm = document.getElementById('addQuestionForm');
     questionsList = document.getElementById('questionsList');
@@ -266,6 +319,7 @@ function setupTeacherPage() {
     if (currentUserId) {
         if (userEmailDisplay) userEmailDisplay.textContent = currentUserEmail || 'Anonymous';
         if (userIdDisplay) userIdDisplay.textContent = currentUserId;
+        if (userDisplayName) userDisplayName.textContent = currentUserName || currentUserEmail || 'Anonymous'; // Show name or email
         if (authStatus) authStatus.textContent = isTeacherAuthorized ? ' (Authorized Teacher)' : ' (Unauthorized)';
 
         // Show/hide sections based on authorization
@@ -289,13 +343,23 @@ function setupTeacherPage() {
         loginBtn.addEventListener('click', handleLogin);
     }
     if (signupBtn) {
-        signupBtn.addEventListener('click', handleSignUp);
+        signupBtn.addEventListener('click', () => {
+            // Show signup specific fields
+            if (signupFields) signupFields.classList.remove('hidden');
+            if (confirmPasswordField) confirmPasswordField.classList.remove('hidden');
+            // Change login button to submit for signup
+            if (loginBtn) loginBtn.type = 'button'; // Prevent login from submitting form
+            if (signupBtn) signupBtn.type = 'submit'; // Make signup button submit form
+            // Re-attach event listener to authForm for signup submission
+            if (authForm) authForm.removeEventListener('submit', handleLogin);
+            if (authForm) authForm.addEventListener('submit', handleSignUp);
+        });
     }
     if (logoutBtn) {
         logoutBtn.addEventListener('click', handleLogout);
     }
     if (addQuestionForm) {
-        addQuestionForm.addEventListener('submit', handleQuestionFormSubmit); // Changed to a new handler
+        addQuestionForm.addEventListener('submit', handleQuestionFormSubmit);
     }
     if (cancelEditBtn) {
         cancelEditBtn.addEventListener('click', cancelEdit);
@@ -337,25 +401,55 @@ async function handleLogin(event) {
  * @param {Event} event - The click event.
  */
 async function handleSignUp(event) {
-    event.preventDefault(); // Prevent form submission if signupBtn is type="submit"
-    const email = emailInput.value;
+    event.preventDefault(); // Prevent form submission
+    const name = teacherNameInput.value.trim();
+    const subject = subjectTaughtInput.value.trim();
+    const email = emailInput.value.trim();
     const password = passwordInput.value;
+    const confirmPassword = confirmPasswordInput.value;
 
-    if (!email || !password) {
-        showMessage("Please enter email and password.", false, authMessageBox);
+    if (!name || !subject || !email || !password || !confirmPassword) {
+        showMessage("Please fill in all signup fields.", false, authMessageBox);
         return;
     }
     if (password.length < 6) {
         showMessage("Password must be at least 6 characters long.", false, authMessageBox);
         return;
     }
+    if (password !== confirmPassword) {
+        showMessage("Passwords do not match.", false, authMessageBox);
+        return;
+    }
 
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        // Automatically authorize the first user who signs up
-        await authorizeTeacher(userCredential.user.uid);
+        const user = userCredential.user;
+
+        // Save additional teacher profile data to Firestore
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const teacherProfileDocRef = doc(db, `artifacts/${appId}/public/data/teacherProfiles`, user.uid);
+        await setDoc(teacherProfileDocRef, {
+            uid: user.uid,
+            email: user.email,
+            name: name,
+            subjectTaught: subject,
+            createdAt: new Date()
+        });
+
+        // Automatically authorize the teacher
+        await authorizeTeacher(user.uid);
+
         showMessage("Account created and authorized successfully! You can now log in.", true, authMessageBox);
         authForm.reset(); // Clear form after signup
+        // Hide signup specific fields after successful signup
+        if (signupFields) signupFields.classList.add('hidden');
+        if (confirmPasswordField) confirmPasswordField.classList.add('hidden');
+        // Revert button types and event listeners for login
+        if (loginBtn) loginBtn.type = 'submit';
+        if (signupBtn) signupBtn.type = 'button';
+        if (authForm) authForm.removeEventListener('submit', handleSignUp);
+        if (authForm) authForm.addEventListener('submit', handleLogin);
+
     } catch (error) {
         console.error("Signup error:", error);
         let errorMessage = "Signup failed.";
@@ -442,7 +536,8 @@ async function addQuestion() {
             correctAnswer: correctOpt,
             createdAt: new Date(),
             addedBy: currentUserId,
-            addedByEmail: currentUserEmail || 'N/A'
+            addedByEmail: currentUserEmail || 'N/A',
+            addedByName: currentUserName || 'N/A' // New: Store teacher's name
         });
 
         showMessage("Question added successfully!", true, messageBox);
@@ -489,10 +584,10 @@ async function updateQuestion(questionId) {
                 D: optD
             },
             correctAnswer: correctOpt,
-            // Do not update createdAt or addedBy, as these refer to original creation
             lastModifiedAt: new Date(), // Add a last modified timestamp
             lastModifiedBy: currentUserId,
-            lastModifiedByEmail: currentUserEmail || 'N/A'
+            lastModifiedByEmail: currentUserEmail || 'N/A',
+            lastModifiedByName: currentUserName || 'N/A' // New: Store teacher's name
         });
 
         showMessage("Question updated successfully!", true, messageBox);
@@ -545,8 +640,8 @@ function setupQuestionsListener() {
                     <li>D: ${questionData.options.D}</li>
                 </ul>
                 <p class="text-green-600 font-medium mb-2">Correct Answer: ${questionData.correctAnswer}</p>
-                <p class="text-gray-500 text-xs">Added by: ${questionData.addedByEmail || questionData.addedBy || 'Unknown'} on ${questionData.createdAt ? new Date(questionData.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
-                ${questionData.lastModifiedAt ? `<p class="text-gray-500 text-xs">Last Modified: ${new Date(questionData.lastModifiedAt.toDate()).toLocaleString()} by ${questionData.lastModifiedByEmail || questionData.lastModifiedBy || 'Unknown'}</p>` : ''}
+                <p class="text-gray-500 text-xs">Added by: ${questionData.addedByName || questionData.addedByEmail || questionData.addedBy || 'Unknown'} on ${questionData.createdAt ? new Date(questionData.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
+                ${questionData.lastModifiedAt ? `<p class="text-gray-500 text-xs">Last Modified: ${new Date(questionData.lastModifiedAt.toDate()).toLocaleString()} by ${questionData.lastModifiedByName || questionData.lastModifiedByEmail || questionData.lastModifiedBy || 'Unknown'}</p>` : ''}
                 <div class="flex space-x-2 mt-3">
                     <button data-id="${questionId}" class="edit-btn bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold py-1 px-3 rounded-md transition duration-300 ease-in-out">
                         Edit
