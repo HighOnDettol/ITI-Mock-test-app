@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Mock Test - ITI Mock Test App</title>
+    <!-- Content Security Policy (CSP) to allow Firebase, Tailwind, and Google Fonts -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.tailwindcss.com https://www.googletagmanager.com;
+        connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://*.googleapis.com https://securetoken.googleapis.com;
+        img-src 'self' data: https://placehold.co;
+        style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com;
+        font-src 'self' https://fonts.gstatic.com;
+    ">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts - Inter -->
@@ -76,18 +85,18 @@
             <h2 class="text-2xl font-semibold text-gray-700 mb-4">Test Configuration</h2>
             <div class="mb-4">
                 <label for="studentId" class="block text-gray-700 text-sm font-bold mb-2">Your Student ID:</label>
-                <input type="text" id="studentId" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., RollNo123" required>
+                <input type="text" id="studentId" name="studentId" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., RollNo123" required>
                 <p class="text-sm text-gray-500 mt-1">Enter your unique ID to track your progress.</p>
             </div>
             <div class="mb-4">
                 <label for="numQuestions" class="block text-gray-700 text-sm font-bold mb-2">Number of Questions (30-700+):</label>
-                <input type="number" id="numQuestions" value="30" min="1" max="700"
+                <input type="number" id="numQuestions" name="numQuestions" value="30" min="1" max="700"
                        class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <p class="text-sm text-gray-500 mt-1">Adjust the number of questions for your mock test.</p>
             </div>
             <div class="mb-6">
                 <label for="timeLimit" class="block text-gray-700 text-sm font-bold mb-2">Time Limit (minutes):</label>
-                <input type="number" id="timeLimit" value="30" min="1"
+                <input type="number" id="timeLimit" name="timeLimit" value="30" min="1"
                        class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <p class="text-sm text-gray-500 mt-1">Set the duration of the test in minutes.</p>
             </div>
