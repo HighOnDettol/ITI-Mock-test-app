@@ -4,16 +4,14 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, 
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, where, getDocs, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- Firebase Configuration ---
-// IMPORTANT: Replace this with YOUR Firebase project's configuration!
-// You obtained this from the Firebase Console in Step 1.
+// IMPORTANT: This configuration is for your specific project.
 const firebaseConfig = {
     apiKey: "AIzaSyAnd2fGeYFVy3-BfgHUVft_eVAPLCOdtJM",
     authDomain: "iti-mock-test-app.firebaseapp.com",
     projectId: "iti-mock-test-app",
     storageBucket: "iti-mock-test-app.firebasestorage.app",
     messagingSenderId: "1050492527635",
-    appId: "1:1050492527635:web:b1d88a3442b1329590cbe6",
-    measurementId: "G-C28JE2Y4NH"
+    appId: "1:1050492527635:web:b1d88a3442b1329590cbe6"
 };
 
 // Global variables for Firebase instances and user ID
@@ -22,8 +20,8 @@ let db;
 let auth;
 let currentUserId = null; // Stores the authenticated user's ID
 let currentUserEmail = null; // Stores the authenticated user's email
-let currentUserName = null; // New: Stores the authenticated teacher's name
-let currentUserSubject = null; // New: Stores the authenticated teacher's subject
+let currentUserName = null; // Stores the authenticated teacher's name
+let currentUserSubject = null; // Stores the authenticated teacher's subject
 let isTeacherAuthorized = false; // Flag to check if the current user is an authorized teacher
 let authorizedTeacherUids = []; // Array to store UIDs of authorized teachers
 
@@ -31,8 +29,74 @@ let authorizedTeacherUids = []; // Array to store UIDs of authorized teachers
 const messageBox = document.getElementById('messageBox'); // Used in teacher.html for question messages
 const userIdDisplay = document.getElementById('userIdDisplay'); // Used in teacher.html
 const userEmailDisplay = document.getElementById('userEmailDisplay'); // Used in teacher.html
-const userDisplayName = document.getElementById('userDisplayName'); // New: Used in teacher.html
+const userDisplayName = document.getElementById('userDisplayName'); // Used in teacher.html
 const authStatus = document.getElementById('authStatus'); // Used in teacher.html
+
+// Sample questions to preload if the database is empty
+const sampleQuestions = [
+    {
+        question: "What is the primary function of a spanner?",
+        options: {
+            A: "To cut materials",
+            B: "To measure length",
+            C: "To hold or grip nuts and bolts",
+            D: "To hammer nails"
+        },
+        correctAnswer: "C",
+        subject: "Fitter"
+    },
+    {
+        question: "Which of the following is not a type of welding joint?",
+        options: {
+            A: "Lap Joint",
+            B: "Butt Joint",
+            C: "T-Joint",
+            D: "Square Joint"
+        },
+        correctAnswer: "D",
+        subject: "Welding"
+    },
+    {
+        question: "Which device is used to measure electric current?",
+        options: {
+            A: "Voltmeter",
+            B: "Ammeter",
+            C: "Ohmmeter",
+            D: "Wattmeter"
+        },
+        correctAnswer: "B",
+        subject: "Electrician"
+    }
+];
+
+/**
+ * Preloads a set of sample questions into the database if the questions collection is empty.
+ * This is to ensure the app works out-of-the-box and the student section has questions to display.
+ */
+async function preloadQuestions() {
+    try {
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const questionsCollectionRef = collection(db, `artifacts/${appId}/public/data/questions`);
+        const querySnapshot = await getDocs(questionsCollectionRef);
+        
+        if (querySnapshot.empty) {
+            console.log("Preloading sample questions...");
+            for (const q of sampleQuestions) {
+                await addDoc(questionsCollectionRef, {
+                    ...q,
+                    createdAt: new Date(),
+                    addedBy: "system",
+                    addedByEmail: "system@iti.com",
+                    addedByName: "System Admin"
+                });
+            }
+            console.log("Sample questions preloaded successfully.");
+        }
+    } catch (error) {
+        console.error("Error preloading questions:", error);
+    }
+}
+
 
 /**
  * Displays a message to the user in the message box.
@@ -95,6 +159,9 @@ async function initializeFirebaseAndAuth() {
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
+        
+        // Preload questions on initial app startup, only if the collection is empty.
+        preloadQuestions();
 
         // Listen for authentication state changes
         onAuthStateChanged(auth, async (user) => {
@@ -537,7 +604,7 @@ async function addQuestion() {
             createdAt: new Date(),
             addedBy: currentUserId,
             addedByEmail: currentUserEmail || 'N/A',
-            addedByName: currentUserName || 'N/A' // New: Store teacher's name
+            addedByName: currentUserName || 'N/A' // Store teacher's name
         });
 
         showMessage("Question added successfully!", true, messageBox);
@@ -587,7 +654,7 @@ async function updateQuestion(questionId) {
             lastModifiedAt: new Date(), // Add a last modified timestamp
             lastModifiedBy: currentUserId,
             lastModifiedByEmail: currentUserEmail || 'N/A',
-            lastModifiedByName: currentUserName || 'N/A' // New: Store teacher's name
+            lastModifiedByName: currentUserName || 'N/A' // Store teacher's name
         });
 
         showMessage("Question updated successfully!", true, messageBox);
